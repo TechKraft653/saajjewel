@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: saajjewels-backend
+    env: node
+    plan: free
+    buildCommand: cd express_backend && npm install
+    startCommand: cd express_backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+
+  - type: web
+    name: saajjewels-razorpay
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10001
