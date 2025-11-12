@@ -2,7 +2,7 @@ require("dotenv").config({ path: __dirname + "/../.env" });
 const express = require("express");
 const cors = require("cors");
 const passport = require("passport");
-const connectDB = require("./config/db");
+const connectDB = require("./config/database");
 
 const authRoutes = require("./routes/auth.routes");
 const offersRoutes = require("./routes/offers.routes");
