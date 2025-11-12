@@ -52,6 +52,44 @@ const userSchema = new mongoose.Schema({
       quantity: Number
     }],
     default: []
+  },
+  addresses: {
+    type: [{
+      id: String,
+      name: String,
+      street: String,
+      city: String,
+      state: String,
+      zip: String,
+      country: String,
+      phone: String
+    }],
+    default: []
+  },
+  orders: {
+    type: [{
+      id: String,
+      items: [{
+        _id: String,
+        name: String,
+        price: Number,
+        quantity: Number,
+        image: String
+      }],
+      total: Number,
+      status: String,
+      createdAt: Date,
+      shippingAddress: {
+        name: String,
+        street: String,
+        city: String,
+        state: String,
+        zip: String,
+        country: String,
+        phone: String
+      }
+    }],
+    default: []
   }
 }, {
   timestamps: true

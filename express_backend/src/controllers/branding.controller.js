@@ -1,4 +1,7 @@
-const { pineconeIndex } = require('../utils/pinecone');
+   // Placeholder for auth controller
+   module.exports = {
+     // Add your controller methods here
+   };const { pineconeIndex } = require('../utils/pinecone');
 
 // Convert branding data to vector representation
 const brandingToVector = (branding) => {
