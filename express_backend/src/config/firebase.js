@@ -1,16 +1,27 @@
 const admin = require('firebase-admin');
 
 // Initialize Firebase Admin SDK
-// In production, you would use service account credentials
-// For now, we'll initialize with default settings
 const initializeFirebase = () => {
   try {
     // Check if Firebase is already initialized
     if (admin.apps.length === 0) {
-      admin.initializeApp({
-        // In production, you would provide service account credentials here
-        // For development, Firebase will use default credentials or emulator
-      });
+      // In production, use service account credentials from environment variables
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        // Parse the service account key from environment variable
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+      } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        // Use service account key file path
+        admin.initializeApp({
+          credential: admin.credential.applicationDefault()
+        });
+      } else {
+        // For development, initialize with default settings
+        // This will use default credentials or Firebase Emulator
+        admin.initializeApp();
+      }
     }
     console.log('Firebase initialized successfully');
     return true;
