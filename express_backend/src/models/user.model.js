@@ -20,6 +20,10 @@ class User {
   // Save user to Firestore
   async save() {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const userData = { ...this };
       delete userData.id; // Remove id from data to be saved
       
@@ -40,6 +44,10 @@ class User {
   // Static method to find one user
   static async findOne(query) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       let snapshot;
       
       if (query.email) {
@@ -66,6 +74,10 @@ class User {
   // Static method to find one user and update
   static async findOneAndUpdate(query, updateData, options = {}) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const user = await this.findOne(query);
       if (!user) {
         return null;

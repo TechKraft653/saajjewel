@@ -15,6 +15,10 @@ class Customer {
   // Save customer to Firestore
   async save() {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const customerData = { ...this };
       delete customerData.id; // Remove id from data to be saved
       
@@ -35,6 +39,10 @@ class Customer {
   // Static method to find one customer
   static async findOne(query) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       let snapshot;
       
       if (query._id) {
@@ -70,6 +78,10 @@ class Customer {
   // Static method to find customers
   static async find(query = {}) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       let snapshot;
       
       if (Object.keys(query).length === 0) {
@@ -105,6 +117,10 @@ class Customer {
   // Static method to find one customer and update
   static async findOneAndUpdate(query, updateData, options = {}) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const customer = await this.findOne(query);
       if (!customer) {
         return null;
@@ -134,6 +150,10 @@ class Customer {
   // Static method to delete a customer
   static async deleteOne(query) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       if (query._id) {
         await db.collection('customers').doc(query._id).delete();
         return { deletedCount: 1 };

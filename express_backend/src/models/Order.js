@@ -30,6 +30,10 @@ class Order {
   // Save order to Firestore
   async save() {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       // Generate order number if not exists
       this.generateOrderNumber();
       
@@ -53,6 +57,10 @@ class Order {
   // Static method to find one order
   static async findOne(query) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       let snapshot;
       
       if (query._id) {
@@ -88,6 +96,10 @@ class Order {
   // Static method to find orders
   static async find(query = {}) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       let snapshot;
       
       if (Object.keys(query).length === 0) {
@@ -123,6 +135,10 @@ class Order {
   // Static method to find one order and update
   static async findOneAndUpdate(query, updateData, options = {}) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const order = await this.findOne(query);
       if (!order) {
         return null;
@@ -152,6 +168,10 @@ class Order {
   // Static method to delete an order
   static async deleteOne(query) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       if (query._id) {
         await db.collection('orders').doc(query._id).delete();
         return { deletedCount: 1 };

@@ -31,7 +31,13 @@ const initializeFirebase = () => {
   }
 };
 
+// Initialize Firebase when this module is loaded
+const isFirebaseInitialized = initializeFirebase();
+
+// Export db only after Firebase is initialized
+const db = isFirebaseInitialized ? admin.firestore() : null;
+
 module.exports = { 
   initializeFirebase,
-  db: admin.firestore()
+  db
 };

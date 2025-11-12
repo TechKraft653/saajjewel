@@ -15,6 +15,10 @@ class Product {
   // Save product to Firestore
   async save() {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const productData = { ...this };
       delete productData.id; // Remove id from data to be saved
       
@@ -35,6 +39,10 @@ class Product {
   // Static method to find one product
   static async findOne(query) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       let snapshot;
       
       if (query._id) {
@@ -59,6 +67,10 @@ class Product {
   // Static method to find products by category
   static async findByCategory(category) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const snapshot = await db.collection('products').where('category', '==', category).get();
       
       if (snapshot.empty) {
@@ -82,6 +94,10 @@ class Product {
   // Static method to find all products
   static async find(query = {}) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       let snapshot;
       
       if (Object.keys(query).length === 0) {
@@ -114,6 +130,10 @@ class Product {
   // Static method to find one product and update
   static async findOneAndUpdate(query, updateData, options = {}) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       const product = await this.findOne(query);
       if (!product) {
         return null;
@@ -143,6 +163,10 @@ class Product {
   // Static method to delete a product
   static async deleteOne(query) {
     try {
+      if (!db) {
+        throw new Error('Database not initialized');
+      }
+      
       if (query._id) {
         await db.collection('products').doc(query._id).delete();
         return { deletedCount: 1 };
