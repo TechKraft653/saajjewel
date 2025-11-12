@@ -13,12 +13,12 @@ const customerRoutes = require("./routes/customer.routes");
 const analyticsRoutes = require("./routes/analytics.routes");
 const contactRoutes = require("./routes/contact.routes");
 
-// Connect to MongoDB
-let isMongoConnected = false;
+// Connect to Firebase
+let isFirebaseConnected = false;
 connectDB().then(result => {
-  isMongoConnected = result;
-  if (!isMongoConnected) {
-    console.log("WARNING: MongoDB not available. Some features may be limited.");
+  isFirebaseConnected = result;
+  if (!isFirebaseConnected) {
+    console.log("WARNING: Firebase not available. Some features may be limited.");
   }
 });
 
@@ -64,16 +64,6 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // Increase payload limit for image uploads
 app.use(passport.initialize());
 
-// Log Pinecone connection
-console.log(
-  `Pinecone API Key provided: ${!!process.env.PINECONE_API_KEY}`
-);
-console.log(
-  `Connecting to Pinecone index: ${
-    process.env.PINECONE_INDEX_NAME || "saajjewels-index"
-  }`
-);
-
 // Mount OAuth routes at root level
 // app.use("/", authRoutes); // Remove this duplicate mounting
 
@@ -101,8 +91,8 @@ app.use("/api/admin/analytics", analyticsRoutes);
 // Basic health check
 app.get("/", (req, res) => res.json({ 
   status: "ok", 
-  mongodb: isMongoConnected ? "connected" : "not available",
-  message: isMongoConnected ? "All systems operational" : "Running in limited mode - MongoDB not available"
+  firebase: isFirebaseConnected ? "connected" : "not available",
+  message: isFirebaseConnected ? "All systems operational" : "Running in limited mode - Firebase not available"
 }));
 
 // Simple test endpoint
