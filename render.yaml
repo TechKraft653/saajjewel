@@ -11,4 +11,15 @@ services:
       - key: PORT
         value: 10000
 
-  
+  - type: web
+    name: saajjewels-razorpay
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10001
