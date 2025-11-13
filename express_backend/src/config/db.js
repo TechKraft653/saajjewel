@@ -48,14 +48,20 @@ if (databaseUrl) {
 // Test the connection
 const connectDB = async () => {
   try {
-    await sequelize.authenticate();
-    console.log('PostgreSQL database connected successfully.');
-    
-    // Sync all models
-    await sequelize.sync({ alter: true });
-    console.log('All models were synchronized successfully.');
-    
-    return true;
+    // Only attempt connection if we have database configuration
+    if (databaseUrl || process.env.POSTGRES_DB) {
+      await sequelize.authenticate();
+      console.log('PostgreSQL database connected successfully.');
+      
+      // Sync all models
+      await sequelize.sync({ alter: true });
+      console.log('All models were synchronized successfully.');
+      
+      return true;
+    } else {
+      console.log('No PostgreSQL configuration found. Skipping database connection.');
+      return false;
+    }
   } catch (error) {
     console.error('Unable to connect to PostgreSQL database:', error);
     return false;

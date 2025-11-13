@@ -13,11 +13,11 @@ const customerRoutes = require("./routes/customer.routes");
 const razorpayRoutes = require("./routes/razorpay.routes");
 const contactRoutes = require("./routes/contact.routes");
 
-// Connect to PostgreSQL and start server only after connection is established
+// Connect to PostgreSQL and start server - make it non-blocking
 connectDB().then(isConnected => {
   if (!isConnected) {
     console.log("WARNING: PostgreSQL not available. Some features may be limited.");
-    process.exit(1);
+    // Don't exit, continue with the application
   } else {
     console.log("SUCCESS: PostgreSQL connected successfully.");
   }
@@ -112,5 +112,6 @@ connectDB().then(isConnected => {
   });
 }).catch(err => {
   console.error("ERROR: Failed to connect to PostgreSQL:", err);
-  process.exit(1);
+  console.log("WARNING: Continuing without PostgreSQL connection.");
+  // Don't exit, continue with the application
 });
