@@ -1,4 +1,5 @@
-const Customer = require('../models/Customer');
+const { Customer } = require('../models/postgres');
+const { Sequelize } = require('sequelize');
 
 // Convert customer data to vector representation
 const customerToVector = (customer) => {
@@ -31,8 +32,8 @@ const customerToVector = (customer) => {
 let customers = {};
 let nextCustomerId = 1;
 
-// Remove Pinecone references and replace with MongoDB-based logic
-const User = require('../models/user.model');
+// Remove Pinecone references and replace with PostgreSQL-based logic
+const { User } = require('../models/postgres');
 
 // Mock customer data since we're removing Pinecone
 const mockCustomers = [
@@ -63,7 +64,7 @@ const mockCustomers = [
 // Get all customers
 exports.getCustomers = async (req, res) => {
   try {
-    const customers = await Customer.find().sort({ createdAt: -1 });
+    const customers = await Customer.findAll({ order: [['createdAt', 'DESC']] });
     res.json(customers);
   } catch (error) {
     console.error('Error fetching customers:', error);
@@ -75,7 +76,7 @@ exports.getCustomers = async (req, res) => {
 exports.getCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
-    const customer = await Customer.findById(id);
+    const customer = await Customer.findByPk(id);
     
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
@@ -93,11 +94,11 @@ exports.updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const updatedCustomer = await Customer.findByIdAndUpdate(
-      id,
+    const [updatedRowsCount, updatedCustomers] = await Customer.update(
       { ...req.body, updatedAt: new Date() },
-      { new: true }
+      { where: { id }, returning: true }
     );
+    const updatedCustomer = updatedCustomers[0];
     
     if (!updatedCustomer) {
       return res.status(404).json({ message: 'Customer not found' });
@@ -119,7 +120,10 @@ exports.deleteCustomerById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const deletedCustomer = await Customer.findByIdAndDelete(id);
+    const deletedCustomer = await Customer.findByPk(id);
+    if (deletedCustomer) {
+      await Customer.destroy({ where: { id } });
+    }
     
     if (!deletedCustomer) {
       return res.status(404).json({ message: 'Customer not found' });
@@ -139,34 +143,36 @@ exports.deleteCustomerById = async (req, res) => {
 exports.getCustomerAnalytics = async (req, res) => {
   try {
     // Calculate customer analytics
-    const totalCustomers = await Customer.countDocuments();
-    const activeCustomers = await Customer.countDocuments({ status: 'active' });
-    const inactiveCustomers = await Customer.countDocuments({ status: 'inactive' });
+    const totalCustomers = await Customer.count();
+    const activeCustomers = await Customer.count({ where: { status: 'active' } });
+    const inactiveCustomers = await Customer.count({ where: { status: 'inactive' } });
     
     // Get customer growth (last 6 months)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     
-    const customerGrowth = await Customer.aggregate([
-      { $match: { createdAt: { $gte: sixMonthsAgo } } },
-      { 
-        $group: { 
-          _id: { 
-            $dateToString: { format: "%Y-%m", date: "$createdAt" } 
-          }, 
-          count: { $sum: 1 }
-        } 
+    const customerGrowth = await Customer.findAll({
+      attributes: [
+        [Sequelize.fn('TO_CHAR', Sequelize.col('createdAt'), 'YYYY-MM'), 'month'],
+        [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']
+      ],
+      where: {
+        createdAt: {
+          [Sequelize.Op.gte]: sixMonthsAgo
+        }
       },
-      { $sort: { _id: 1 } }
-    ]);
+      group: [Sequelize.fn('TO_CHAR', Sequelize.col('createdAt'), 'YYYY-MM')],
+      order: [[Sequelize.fn('TO_CHAR', Sequelize.col('createdAt'), 'YYYY-MM'), 'ASC']],
+      raw: true
+    });
     
     res.json({
       totalCustomers,
       activeCustomers,
       inactiveCustomers,
       customerGrowth: customerGrowth.map(item => ({
-        month: item._id,
-        count: item.count
+        month: item.month,
+        count: parseInt(item.count)
       }))
     });
   } catch (error) {
@@ -179,8 +185,7 @@ exports.getCustomerAnalytics = async (req, res) => {
 exports.createCustomer = async (req, res) => {
   try {
     const customerData = req.body;
-    const customer = new Customer(customerData);
-    const savedCustomer = await customer.save();
+    const savedCustomer = await Customer.create(customerData);
     
     res.status(201).json(savedCustomer);
   } catch (error) {
@@ -195,11 +200,11 @@ exports.updateCustomerOriginal = async (req, res) => {
     const { id } = req.params;
     const customerData = req.body;
     
-    const updatedCustomer = await Customer.findByIdAndUpdate(
-      id,
+    const [updatedRowsCount, updatedCustomers] = await Customer.update(
       { ...customerData, updatedAt: new Date() },
-      { new: true }
+      { where: { id }, returning: true }
     );
+    const updatedCustomer = updatedCustomers[0];
     
     if (!updatedCustomer) {
       return res.status(404).json({ error: "Customer not found" });
@@ -217,7 +222,10 @@ exports.deleteCustomer = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const deletedCustomer = await Customer.findByIdAndDelete(id);
+    const deletedCustomer = await Customer.findByPk(id);
+    if (deletedCustomer) {
+      await Customer.destroy({ where: { id } });
+    }
     
     if (!deletedCustomer) {
       return res.status(404).json({ error: "Customer not found" });
@@ -282,21 +290,24 @@ exports.updateCustomerFromOrder = async (orderData) => {
     }
     
     // Find existing customer by email or create new one
-    let customer = await Customer.findOne({ email: customerEmail });
+    let customer = await Customer.findOne({ where: { email: customerEmail } });
     
     if (customer) {
       // Update existing customer
-      customer.totalOrders = (customer.totalOrders || 0) + 1;
-      customer.totalSpent = (customer.totalSpent || 0) + (totalAmount || 0);
-      customer.lastOrderDate = new Date();
-      if (customerPhone) customer.phone = customerPhone;
-      if (customerName) customer.name = customerName;
-      
-      await customer.save();
-      console.log('Updated existing customer:', customer.email);
+      await Customer.update(
+        {
+          totalOrders: (customer.totalOrders || 0) + 1,
+          totalSpent: (customer.totalSpent || 0) + (totalAmount || 0),
+          lastOrderDate: new Date(),
+          phone: customerPhone || customer.phone,
+          name: customerName || customer.name
+        },
+        { where: { id: customer.id } }
+      );
+      console.log('Updated existing customer:', customerEmail);
     } else {
       // Create new customer
-      customer = new Customer({
+      customer = await Customer.create({
         name: customerName || '',
         email: customerEmail,
         phone: customerPhone || '',
@@ -305,9 +316,7 @@ exports.updateCustomerFromOrder = async (orderData) => {
         lastOrderDate: new Date(),
         status: 'active'
       });
-      
-      await customer.save();
-      console.log('Created new customer:', customer.email);
+      console.log('Created new customer:', customerEmail);
     }
     
     return customer;

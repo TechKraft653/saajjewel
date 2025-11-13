@@ -1,4 +1,4 @@
-const User = require("../models/user.model");
+const { User } = require("../models/postgres");
 
 // --- Cart endpoints ---
 exports.getCart = async (req, res) => {
@@ -7,15 +7,14 @@ exports.getCart = async (req, res) => {
     if (!email) return res.status(401).json({ message: 'Not authenticated' });
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with empty cart
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         cart: [] 
       });
-      await user.save();
     }
     
     return res.json(user.cart || []);
@@ -33,19 +32,18 @@ exports.updateCart = async (req, res) => {
     let user = await User.findOne({ email });
     if (!user) {
       // Create a new user with the cart data
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         cart: req.body || [] 
       });
-      await user.save();
     } else {
       // Update existing user's cart
-      user = await User.findOneAndUpdate(
-        { email },
+      await User.update(
         { cart: req.body || [] },
-        { new: true }
+        { where: { email } }
       );
+      user = await User.findOne({ where: { email } });
     }
     
     return res.status(200).json({ success: true });
@@ -60,22 +58,21 @@ exports.clearCart = async (req, res) => {
     if (!email) return res.status(401).json({ message: 'Not authenticated' });
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with empty cart
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         cart: [] 
       });
-      await user.save();
     } else {
       // Clear existing user's cart
-      user = await User.findOneAndUpdate(
-        { email },
+      await User.update(
         { cart: [] },
-        { new: true }
+        { where: { email } }
       );
+      user = await User.findOne({ where: { email } });
     }
     
     return res.status(200).json({ success: true });
@@ -91,15 +88,14 @@ exports.getAddresses = async (req, res) => {
     if (!email) return res.status(401).json({ message: 'Not authenticated' });
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with empty addresses
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         addresses: [] 
       });
-      await user.save();
     }
     
     return res.json(user.addresses || []);
@@ -116,22 +112,22 @@ exports.addAddress = async (req, res) => {
     const addr = { ...req.body, id: Date.now().toString() };
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with the address
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         addresses: [addr] 
       });
-      await user.save();
     } else {
       // Add address to existing user
-      user = await User.findOneAndUpdate(
-        { email },
-        { $push: { addresses: addr } },
-        { new: true }
+      const updatedAddresses = [...(user.addresses || []), addr];
+      await User.update(
+        { addresses: updatedAddresses },
+        { where: { email } }
       );
+      user = await User.findOne({ where: { email } });
     }
     
     return res.json(addr);
@@ -148,15 +144,14 @@ exports.updateAddress = async (req, res) => {
     const addrId = req.params.id;
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with empty addresses
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         addresses: [] 
       });
-      await user.save();
       return res.status(200).json({ success: true });
     }
     
@@ -164,11 +159,11 @@ exports.updateAddress = async (req, res) => {
       a.id === addrId ? { ...a, ...req.body } : a
     );
     
-    const updatedUser = await User.findOneAndUpdate(
-      { email },
+    await User.update(
       { addresses: updatedAddresses },
-      { new: true }
+      { where: { email } }
     );
+    const updatedUser = await User.findOne({ where: { email } });
     
     return res.status(200).json({ success: true });
   } catch (error) {
@@ -184,25 +179,24 @@ exports.deleteAddress = async (req, res) => {
     const addrId = req.params.id;
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with empty addresses
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         addresses: [] 
       });
-      await user.save();
       return res.status(200).json({ success: true });
     }
     
     const updatedAddresses = user.addresses.filter(a => a.id !== addrId);
     
-    const updatedUser = await User.findOneAndUpdate(
-      { email },
+    await User.update(
       { addresses: updatedAddresses },
-      { new: true }
+      { where: { email } }
     );
+    const updatedUser = await User.findOne({ where: { email } });
     
     return res.status(200).json({ success: true });
   } catch (error) {
@@ -217,15 +211,14 @@ exports.getOrders = async (req, res) => {
     if (!email) return res.status(401).json({ message: 'Not authenticated' });
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with empty orders
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         orders: [] 
       });
-      await user.save();
     }
     
     return res.json(user.orders || []);
@@ -240,15 +233,14 @@ exports.getOrderById = async (req, res) => {
     if (!email) return res.status(401).json({ message: 'Not authenticated' });
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with empty orders
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         orders: [] 
       });
-      await user.save();
     }
     
     const order = (user.orders || []).find(o => o.id == req.params.id);
@@ -268,26 +260,26 @@ exports.addOrder = async (req, res) => {
     const order = { ...req.body, id: Date.now().toString() };
     
     // Try to find user, create if not exists
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ where: { email } });
     if (!user) {
       // Create a new user with the order
-      user = new User({ 
+      user = await User.create({ 
         email, 
         password: await User.hashPassword(Math.random().toString(36).slice(-8)), // Random password
         orders: [order],
         cart: [] // Clear cart after placing order
       });
-      await user.save();
     } else {
       // Add order to existing user
-      user = await User.findOneAndUpdate(
-        { email },
+      const updatedOrders = [...(user.orders || []), order];
+      await User.update(
         { 
-          $push: { orders: order },
-          $set: { cart: [] } // Clear cart after placing order
+          orders: updatedOrders,
+          cart: [] // Clear cart after placing order
         },
-        { new: true }
+        { where: { email } }
       );
+      user = await User.findOne({ where: { email } });
     }
     
     return res.json(order);

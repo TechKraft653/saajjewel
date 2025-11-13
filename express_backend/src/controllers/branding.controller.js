@@ -1,7 +1,4 @@
-   // Placeholder for auth controller
-   module.exports = {
-     // Add your controller methods here
-   };const { pineconeIndex } = require('../utils/pinecone');
+const { pineconeIndex } = require('../utils/pinecone');
 
 // Convert branding data to vector representation
 const brandingToVector = (branding) => {
@@ -30,8 +27,8 @@ const brandingToVector = (branding) => {
   return vector;
 };
 
-// Remove Pinecone references and replace with MongoDB-based logic
-const User = require('../models/user.model');
+// Remove Pinecone references and replace with PostgreSQL-based logic
+const { User } = require('../models/postgres');
 
 // Mock branding settings since we're removing Pinecone
 let brandingSettings = {

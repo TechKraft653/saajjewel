@@ -16,7 +16,7 @@ class Product {
   async save() {
     try {
       if (!db) {
-        throw new Error('Database not initialized');
+        throw new Error('Database not initialized - Firestore connection failed');
       }
       
       const productData = { ...this };
@@ -32,6 +32,7 @@ class Product {
       }
       return this;
     } catch (error) {
+      console.error('Error saving product to Firestore:', error);
       throw new Error(`Error saving product: ${error.message}`);
     }
   }
@@ -40,7 +41,7 @@ class Product {
   static async findOne(query) {
     try {
       if (!db) {
-        throw new Error('Database not initialized');
+        throw new Error('Database not initialized - Firestore connection failed');
       }
       
       let snapshot;
@@ -60,6 +61,7 @@ class Product {
         return null;
       }
     } catch (error) {
+      console.error('Error finding product in Firestore:', error);
       throw new Error(`Error finding product: ${error.message}`);
     }
   }
@@ -68,7 +70,7 @@ class Product {
   static async findByCategory(category) {
     try {
       if (!db) {
-        throw new Error('Database not initialized');
+        throw new Error('Database not initialized - Firestore connection failed');
       }
       
       const snapshot = await db.collection('products').where('category', '==', category).get();
@@ -87,6 +89,7 @@ class Product {
       
       return products;
     } catch (error) {
+      console.error('Error finding products by category in Firestore:', error);
       throw new Error(`Error finding products by category: ${error.message}`);
     }
   }
@@ -95,7 +98,7 @@ class Product {
   static async find(query = {}) {
     try {
       if (!db) {
-        throw new Error('Database not initialized');
+        throw new Error('Database not initialized - Firestore connection failed');
       }
       
       let snapshot;
@@ -123,6 +126,7 @@ class Product {
       
       return products;
     } catch (error) {
+      console.error('Error finding products in Firestore:', error);
       throw new Error(`Error finding products: ${error.message}`);
     }
   }
@@ -131,7 +135,7 @@ class Product {
   static async findOneAndUpdate(query, updateData, options = {}) {
     try {
       if (!db) {
-        throw new Error('Database not initialized');
+        throw new Error('Database not initialized - Firestore connection failed');
       }
       
       const product = await this.findOne(query);
@@ -156,6 +160,7 @@ class Product {
       
       return options.new !== false ? product : undefined;
     } catch (error) {
+      console.error('Error updating product in Firestore:', error);
       throw new Error(`Error updating product: ${error.message}`);
     }
   }
@@ -164,7 +169,7 @@ class Product {
   static async deleteOne(query) {
     try {
       if (!db) {
-        throw new Error('Database not initialized');
+        throw new Error('Database not initialized - Firestore connection failed');
       }
       
       if (query._id) {
@@ -173,6 +178,7 @@ class Product {
       }
       return { deletedCount: 0 };
     } catch (error) {
+      console.error('Error deleting product from Firestore:', error);
       throw new Error(`Error deleting product: ${error.message}`);
     }
   }

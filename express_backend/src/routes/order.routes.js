@@ -7,7 +7,7 @@ const { isAdmin } = require('../controllers/product.controller.js');
 router.get('/', isAdmin, orderController.getOrders);
 router.get('/analytics', isAdmin, orderController.getOrderAnalytics);
 router.get('/:id', isAdmin, orderController.getOrderById);
-router.post('/', isAdmin, orderController.createOrder);
+router.post('/', orderController.createOrder);
 router.put('/:id', isAdmin, orderController.updateOrder);
 router.put('/:id/status', isAdmin, orderController.updateOrderStatus); // Add specific route for status updates
 router.delete('/:id', isAdmin, orderController.deleteOrder);

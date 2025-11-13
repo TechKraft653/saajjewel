@@ -1,11 +1,12 @@
-const Order = require('../models/Order');
+const { Order } = require('../models/postgres');
+const { Sequelize } = require('sequelize');
 const { updateCustomerFromOrder } = require('./customer.controller');
 const { sendEmail } = require('../utils/email');
 
 // Get all orders
 exports.getOrders = async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const orders = await Order.findAll({ order: [['createdAt', 'DESC']] });
     res.json(orders);
   } catch (error) {
     console.error('Error fetching orders:', error);
@@ -23,7 +24,7 @@ exports.getOrderById = async (req, res) => {
       return res.status(400).json({ message: 'Order ID is required' });
     }
     
-    const order = await Order.findById(id);
+    const order = await Order.findByPk(id);
     console.log('Found order:', order);
     
     if (!order) {
@@ -43,11 +44,11 @@ exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     
-    const order = await Order.findByIdAndUpdate(
-      id, 
+    const [updatedRowsCount, updatedOrders] = await Order.update(
       { status, updatedAt: new Date() },
-      { new: true }
+      { where: { id }, returning: true }
     );
+    const order = updatedOrders[0];
     
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -68,7 +69,7 @@ exports.updateOrderStatus = async (req, res) => {
                 <h3>Order Details:</h3>
                 <p><strong>Order Number:</strong> ${order.orderNumber}</p>
                 <p><strong>Order Date:</strong> ${order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}</p>
-                <p><strong>Total Amount:</strong> ₹${order.totalAmount?.toFixed(2) || '0.00'}</p>
+                <p><strong>Total Amount:</strong> ₹${parseFloat(order.totalAmount || 0).toFixed(2)}</p>
               </div>
               <p>You will receive tracking information via email once your package is out for delivery.</p>
               <p>Thank you for shopping with SaajJewels!</p>
@@ -76,6 +77,7 @@ exports.updateOrderStatus = async (req, res) => {
             </div>
           `
         });
+        console.log(`Shipping notification email sent to ${order.customerEmail}`);
       } catch (emailError) {
         console.error('Failed to send shipping notification email:', emailError);
       }
@@ -96,47 +98,49 @@ exports.updateOrderStatus = async (req, res) => {
 exports.getOrderAnalytics = async (req, res) => {
   try {
     // Calculate order analytics
-    const totalOrders = await Order.countDocuments();
+    const totalOrders = await Order.count();
     
-    const totalRevenueResult = await Order.aggregate([
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
-    ]);
-    const totalRevenue = totalRevenueResult.length > 0 ? totalRevenueResult[0].total : 0;
+    const totalRevenueResult = await Order.sum('totalAmount');
+    const totalRevenue = totalRevenueResult || 0;
     
     // Group orders by status
-    const statusCounts = await Order.aggregate([
-      { $group: { _id: "$status", count: { $sum: 1 } } }
-    ]);
+    const statusCounts = await Order.findAll({
+      attributes: ['status', [Sequelize.fn('COUNT', Sequelize.col('status')), 'count']],
+      group: ['status'],
+      raw: true
+    });
     
     const statusMap = {};
     statusCounts.forEach(item => {
-      statusMap[item._id] = item.count;
+      statusMap[item.status] = parseInt(item.count);
     });
     
     // Get sales trend (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const salesTrend = await Order.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
-      { 
-        $group: { 
-          _id: { 
-            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } 
-          }, 
-          orders: { $sum: 1 },
-          revenue: { $sum: "$totalAmount" }
-        } 
+    const salesTrend = await Order.findAll({
+      attributes: [
+        [Sequelize.fn('DATE', Sequelize.col('createdAt')), 'date'],
+        [Sequelize.fn('COUNT', Sequelize.col('id')), 'orders'],
+        [Sequelize.fn('SUM', Sequelize.col('totalAmount')), 'revenue']
+      ],
+      where: {
+        createdAt: {
+          [Sequelize.Op.gte]: thirtyDaysAgo
+        }
       },
-      { $sort: { _id: 1 } }
-    ]);
+      group: [Sequelize.fn('DATE', Sequelize.col('createdAt'))],
+      order: [[Sequelize.fn('DATE', Sequelize.col('createdAt')), 'ASC']],
+      raw: true
+    });
     
     res.json({
       totalOrders,
       totalRevenue,
       statusCounts: statusMap,
       salesTrend: salesTrend.map(item => ({
-        date: item._id,
+        date: item.date,
         orders: item.orders,
         revenue: item.revenue
       }))
@@ -177,8 +181,7 @@ exports.createOrder = async (req, res) => {
       razorpayPaymentId: orderData.razorpayPaymentId
     };
     
-    const order = new Order(orderObject);
-    const savedOrder = await order.save();
+    const savedOrder = await Order.create(orderObject);
     
     // Update customer data with order information
     try {
@@ -196,16 +199,25 @@ exports.createOrder = async (req, res) => {
     }
     
     // Send order confirmation email
+    console.log('Attempting to send order confirmation email');
+    console.log('- Customer email:', savedOrder.customerEmail);
+    console.log('- Order number:', savedOrder.orderNumber);
+    console.log('- Customer name:', savedOrder.customerName);
+    console.log('- Items count:', (savedOrder.items || []).length);
+    console.log('- Total amount:', savedOrder.totalAmount);
+    
     if (savedOrder.customerEmail) {
       try {
         // Format items for email
-        const itemsHtml = savedOrder.items.map(item => `
+        const itemsHtml = (savedOrder.items || []).map(item => `
           <tr>
-            <td>${item.name}</td>
-            <td>${item.quantity}</td>
-            <td>₹${(item.price * item.quantity).toFixed(2)}</td>
+            <td>${item.name || 'Unknown Item'}</td>
+            <td>${item.quantity || 1}</td>
+            <td>₹${(parseFloat(item.price || item.discountedPrice || 0) * parseFloat(item.quantity || 1)).toFixed(2)}</td>
           </tr>
         `).join('');
+        
+        console.log('Sending email with items:', itemsHtml);
         
         await sendEmail({
           to: savedOrder.customerEmail,
@@ -220,7 +232,7 @@ exports.createOrder = async (req, res) => {
                 <h3>Order Details:</h3>
                 <p><strong>Order Number:</strong> ${savedOrder.orderNumber}</p>
                 <p><strong>Order Date:</strong> ${savedOrder.createdAt ? new Date(savedOrder.createdAt).toLocaleDateString() : 'N/A'}</p>
-                <p><strong>Total Amount:</strong> ₹${savedOrder.totalAmount?.toFixed(2) || '0.00'}</p>
+                <p><strong>Total Amount:</strong> ₹${parseFloat(savedOrder.totalAmount || 0).toFixed(2)}</p>
                 <p><strong>Payment Method:</strong> ${savedOrder.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Online Payment'}</p>
               </div>
               
@@ -234,14 +246,14 @@ exports.createOrder = async (req, res) => {
                   </tr>
                 </thead>
                 <tbody>
-                  ${itemsHtml}
+                  ${itemsHtml || '<tr><td colspan="3">No items found</td></tr>'}
                 </tbody>
               </table>
               
               <h3>Shipping Address:</h3>
               <div style="background-color: #f9f9f9; padding: 10px; margin: 15px 0;">
-                <p>${savedOrder.customerName}</p>
-                <p>${savedOrder.shippingAddress}</p>
+                <p>${savedOrder.customerName || 'N/A'}</p>
+                <p>${savedOrder.shippingAddress || 'Address not provided'}</p>
               </div>
               
               <p>We'll send you another email when your order ships. If you have any questions, feel free to contact us.</p>
@@ -250,10 +262,13 @@ exports.createOrder = async (req, res) => {
             </div>
           `
         });
+        console.log(`Order confirmation email sent to ${savedOrder.customerEmail}`);
       } catch (emailError) {
         console.error('Failed to send order confirmation email:', emailError);
         // Don't fail the order creation if email fails
       }
+    } else {
+      console.log('No customer email provided, skipping order confirmation email');
     }
     
     res.status(201).json(savedOrder);
@@ -269,11 +284,11 @@ exports.updateOrder = async (req, res) => {
     const { id } = req.params;
     const orderData = req.body;
     
-    const updatedOrder = await Order.findByIdAndUpdate(
-      id,
+    const [updatedRowsCount, updatedOrders] = await Order.update(
       { ...orderData, updatedAt: new Date() },
-      { new: true }
+      { where: { id }, returning: true }
     );
+    const updatedOrder = updatedOrders[0];
     
     if (!updatedOrder) {
       return res.status(404).json({ error: "Order not found" });
@@ -300,7 +315,10 @@ exports.deleteOrder = async (req, res) => {
       return res.status(400).json({ error: "Order ID is required" });
     }
     
-    const deletedOrder = await Order.findByIdAndDelete(id);
+    const deletedOrder = await Order.findByPk(id);
+    if (deletedOrder) {
+      await Order.destroy({ where: { id } });
+    }
     console.log('Deleted order result:', deletedOrder);
     
     if (!deletedOrder) {

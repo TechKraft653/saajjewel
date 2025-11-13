@@ -1,4 +1,5 @@
-const Product = require("../models/Product");
+const { Product } = require("../models/postgres");
+const { Sequelize } = require('sequelize');
 const { upload } = require("../config/cloudinary");
 
 // Auth check middleware for admin, pass (req, res, next)
@@ -44,12 +45,14 @@ exports.searchProducts = async (req, res) => {
     const searchRegex = new RegExp(escapedQuery, 'i');
     console.log("Search regex:", searchRegex);
     
-    const products = await Product.find({
-      $or: [
-        { name: searchRegex },
-        { category: searchRegex },
-        { description: searchRegex }
-      ]
+    const products = await Product.findAll({
+      where: {
+        [Sequelize.Op.or]: [
+          { name: { [Sequelize.Op.iLike]: `%${q}%` } },
+          { category: { [Sequelize.Op.iLike]: `%${q}%` } },
+          { description: { [Sequelize.Op.iLike]: `%${q}%` } }
+        ]
+      }
     });
     
     console.log(`Found ${products.length} products for query: ${q}`);
@@ -65,7 +68,7 @@ exports.searchProducts = async (req, res) => {
 // Public: get all products
 exports.getAllProducts = async (req, res) => {
   try {
-    const products = await Product.find();
+    const products = await Product.findAll();
     res.json(products);
   } catch (error) {
     res
@@ -77,7 +80,7 @@ exports.getAllProducts = async (req, res) => {
 exports.getProductById = async (req, res) => {
   try {
     const { id } = req.params;
-    const product = await Product.findById(id);
+    const product = await Product.findByPk(id);
     
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -139,8 +142,7 @@ exports.createProduct = async (req, res) => {
       category
     };
 
-    const product = new Product(productData);
-    const savedProduct = await product.save();
+    const savedProduct = await Product.create(productData);
 
     res.status(201).json(savedProduct);
   } catch (error) {
@@ -201,9 +203,11 @@ exports.updateProduct = async (req, res) => {
       updatedAt: new Date()
     };
 
-    const updatedProduct = await Product.findByIdAndUpdate(id, updateData, {
-      new: true,
+    const [updatedRowsCount, updatedProducts] = await Product.update(updateData, {
+      where: { id },
+      returning: true
     });
+    const updatedProduct = updatedProducts[0];
     
     if (!updatedProduct) return res.status(404).json({ message: "Product not found" });
 
@@ -226,7 +230,10 @@ exports.deleteProduct = async (req, res) => {
       return res.status(400).json({ message: "Product ID is required" });
     }
     
-    const deletedProduct = await Product.findByIdAndDelete(id);
+    const deletedProduct = await Product.findByPk(id);
+    if (deletedProduct) {
+      await Product.destroy({ where: { id } });
+    }
     
     if (!deletedProduct) {
       console.log("Product not found with ID:", id);

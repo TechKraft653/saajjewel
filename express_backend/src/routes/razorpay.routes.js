@@ -26,10 +26,20 @@ router.post('/create-order', async (req, res) => {
       });
     }
     
+    // Create a real order with Razorpay
     const order = await razorpay.orders.create({
       amount,
       currency: currency || 'INR',
       receipt: receipt || 'receipt_' + Date.now(),
+      // Add payment capture settings for better UPI experience
+      payment: {
+        capture: 'automatic', // Automatically capture payment
+        capture_options: {
+          refund_speed: 'optimum', // Optimize refund speed
+          automatic_expiry_period: 1800, // 30 minutes expiry for UPI
+          manual_expiry_period: 7200, // 2 hours for manual capture
+        }
+      }
     });
     
     // Add customer data to the order response
@@ -84,6 +94,22 @@ router.post('/verify-payment', async (req, res) => {
     // Return proper JSON error response
     res.status(500).json({ 
       error: 'Error verifying payment',
+      message: err.message || 'Unknown error occurred'
+    });
+  }
+});
+
+// Webhook endpoint for payment status updates (useful for UPI payments)
+router.post('/webhook', express.raw({type: 'application/json'}), (req, res) => {
+  try {
+    // This is a placeholder for webhook handling
+    // In production, you would verify the webhook signature and process the event
+    console.log('Webhook received:', req.body);
+    res.status(200).json({ status: 'ok' });
+  } catch (err) {
+    console.error('Webhook error:', err);
+    res.status(500).json({ 
+      error: 'Error processing webhook',
       message: err.message || 'Unknown error occurred'
     });
   }

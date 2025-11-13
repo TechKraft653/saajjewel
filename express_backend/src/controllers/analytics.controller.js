@@ -1,4 +1,19 @@
-const pinecone = require('../utils/pinecone');
+const { pineconeIndex } = require('../utils/pinecone');
+
+// In-memory data for analytics (in production, you might want to use a database)
+let analyticsData = {
+  totalOrders: 0,
+  totalRevenue: 0,
+  totalCustomers: 0,
+  totalProducts: 0,
+  ordersByStatus: {},
+  revenueByCategory: {},
+  topSellingProducts: [],
+  customerGrowth: []
+};
+
+// Remove Pinecone references and replace with PostgreSQL-based logic
+const { User } = require('../models/postgres');
 
 // Mock data for analytics since we're removing Pinecone
 const mockAnalyticsData = {
@@ -21,21 +36,6 @@ const mockAnalyticsData = {
     { month: "Jun", revenue: 2400 },
   ]
 };
-
-// In-memory data for analytics (in production, you might want to use a database)
-let analyticsData = {
-  totalOrders: 0,
-  totalRevenue: 0,
-  totalCustomers: 0,
-  totalProducts: 0,
-  ordersByStatus: {},
-  revenueByCategory: {},
-  topSellingProducts: [],
-  customerGrowth: []
-};
-
-// Remove Pinecone references and replace with MongoDB-based logic
-const User = require('../models/user.model');
 
 // Get dashboard statistics
 exports.getDashboardStats = async (req, res) => {
@@ -152,6 +152,45 @@ exports.getProductPerformance = async (req, res) => {
     res.json(productPerformance);
   } catch (error) {
     console.error("Error fetching product performance:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Search analytics data using vector similarity
+exports.searchAnalytics = async (req, res) => {
+  try {
+    const { query, topK = 10 } = req.body;
+    
+    // Convert query to vector (simplified for demo)
+    const vector = new Array(1536).fill(0);
+    const hash = (str) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      return Math.abs(hash);
+    };
+    
+    const text = query.toLowerCase();
+    for (let i = 0; i < Math.min(10, text.length); i++) {
+      const index = hash(text.substring(i, i + 5)) % 1536;
+      vector[index] = (vector[index] || 0) + 1;
+    }
+    
+    // Query Pinecone
+    const queryRequest = {
+      vector: vector,
+      topK: parseInt(topK),
+      includeMetadata: true
+    };
+    
+    const response = await pineconeIndex.query(queryRequest);
+    
+    res.json(response.matches);
+  } catch (error) {
+    console.error("Error searching analytics data:", error);
     res.status(500).json({ error: error.message });
   }
 };

@@ -1,5 +1,5 @@
-// Remove Pinecone references and replace with MongoDB-based logic
-const User = require('../models/user.model');
+// Remove Pinecone references and replace with PostgreSQL-based logic
+const { User } = require('../models/postgres');
 
 // Since we're removing Pinecone, we'll use MongoDB for user vector-like operations
 

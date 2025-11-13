@@ -1,8 +1,8 @@
-require("dotenv").config({ path: __dirname + "/../.env" });
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const passport = require("passport");
-const connectDB = require("./config/database");
+const { connectDB } = require("./config/db");
 
 const authRoutes = require("./routes/auth.routes");
 const offersRoutes = require("./routes/offers.routes");
@@ -10,108 +10,107 @@ const userRoutes = require("./routes/user.routes");
 const productRoutes = require("./routes/product.routes");
 const orderRoutes = require("./routes/order.routes");
 const customerRoutes = require("./routes/customer.routes");
-const analyticsRoutes = require("./routes/analytics.routes");
+const razorpayRoutes = require("./routes/razorpay.routes");
 const contactRoutes = require("./routes/contact.routes");
 
-// Connect to Firebase
-let isFirebaseConnected = false;
-connectDB().then(result => {
-  isFirebaseConnected = result;
-  if (!isFirebaseConnected) {
-    console.log("WARNING: Firebase not available. Some features may be limited.");
+// Connect to PostgreSQL and start server only after connection is established
+connectDB().then(isConnected => {
+  if (!isConnected) {
+    console.log("WARNING: PostgreSQL not available. Some features may be limited.");
+    process.exit(1);
+  } else {
+    console.log("SUCCESS: PostgreSQL connected successfully.");
   }
-});
 
-const app = express();
+  const app = express();
 
-// Configure CORS with more permissive settings for development
-const replitDomain = process.env.REPLIT_DOMAINS 
-  ? `https://${process.env.REPLIT_DOMAINS}` 
-  : null;
+  // Add this before the CORS configuration to handle localhost issues
+  app.use((req, res, next) => {
+    // Log all requests for debugging
+    console.log(`${req.method} ${req.url}`);
+    next();
+  });
 
-const corsOrigins = [
-  "http://localhost:3000", 
-  "http://localhost:5000",
-  "http://localhost:5173"
-];
+  // Configure CORS
+  const corsOrigins = [
+    "http://localhost:3000", 
+    "http://localhost:5000",
+    "http://localhost:5001",
+    "http://localhost:5006",
+    "http://localhost:5173",
+    `http://10.191.31.104:3000`,
+    `http://10.191.31.104:5173`
+  ];
 
-if (replitDomain) {
-  corsOrigins.push(replitDomain);
-}
-
-const corsOrigin = process.env.CORS_ORIGIN || corsOrigins.join(",");
-let corsOptions;
-if (corsOrigin.includes(",")) {
-  const whitelist = corsOrigin.split(",").map((s) => s.trim());
-  corsOptions = {
+  // For development, be more permissive
+  const corsOptions = {
     origin: function (origin, callback) {
-      // allow requests with no origin like server-to-server or curl
+      // Allow requests with no origin (like mobile apps, curl, etc.)
       if (!origin) return callback(null, true);
-      if (whitelist.indexOf(origin) !== -1) {
+      
+      // Check if origin is in whitelist
+      if (corsOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        // In development, allow all localhost origins
+        if (process.env.NODE_ENV === 'development' && origin.startsWith('http://localhost:')) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
       }
     },
     credentials: true,
-    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
   };
-} else {
-  corsOptions = { origin: corsOrigin, credentials: true, optionsSuccessStatus: 200 };
-}
 
-app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' })); // Increase payload limit for image uploads
-app.use(passport.initialize());
+  app.use(cors(corsOptions));
+  app.use(express.json());
+  app.use(passport.initialize());
 
-// Mount OAuth routes at root level
-// app.use("/", authRoutes); // Remove this duplicate mounting
+  // Mount auth routes under /auth (removing duplicate mounting at root)
+  app.use("/auth", authRoutes);
 
-// Mount other auth routes under /auth
-app.use("/auth", authRoutes);
+  // Mount offers routes
+  app.use("/offers", offersRoutes);
 
-// Mount offers routes
-app.use("/offers", offersRoutes);
+  // Mount user routes
+  app.use("/api", userRoutes);
+  app.use("/api", productRoutes);
 
-// Mount order routes first (before user routes to avoid conflicts)
-app.use("/api/orders", orderRoutes);
-// Mount user routes (but not for /orders endpoint which conflicts)
-app.use("/api/users", userRoutes);
-app.use("/api", productRoutes);
+  // Mount admin routes
+  app.use("/api/admin/orders", orderRoutes);
+  app.use("/api/admin/customers", customerRoutes);
 
-// Mount contact routes
-app.use("/api/contact", contactRoutes);
+  // Mount Razorpay routes
+  app.use("/api/razorpay", razorpayRoutes);
 
-// Mount customer routes (admin only)
-app.use("/api/admin/customers", customerRoutes);
+  // Mount contact routes
+  app.use("/api/contact", contactRoutes);
 
-// Mount analytics routes (admin only)
-app.use("/api/admin/analytics", analyticsRoutes);
+  // Basic health check
+  app.get("/", (req, res) => res.json({ status: "ok" }));
 
-// Basic health check
-app.get("/", (req, res) => res.json({ 
-  status: "ok", 
-  firebase: isFirebaseConnected ? "connected" : "not available",
-  message: isFirebaseConnected ? "All systems operational" : "Running in limited mode - Firebase not available"
-}));
-
-// Simple test endpoint
-app.get("/test", (req, res) => {
-  console.log("Test endpoint called");
-  res.json({ 
-    status: "ok", 
-    timestamp: new Date().toISOString(),
-    message: "Test endpoint working"
+  // Error handler
+  app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res
+      .status(err.status || 500)
+      .json({ error: err.message || "Internal Server Error" });
   });
-});
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res
-    .status(err.status || 500)
-    .json({ error: err.message || "Internal Server Error" });
-});
+  const PORT = process.env.PORT || 3002;
+  const server = app.listen(PORT, '0.0.0.0', () => console.log(`Server running on 0.0.0.0:${PORT}`));
 
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on 0.0.0.0:${PORT}`));
+  // Add error handling for the server
+  server.on('error', (err) => {
+    console.error('Server error:', err);
+  });
+
+  server.on('listening', () => {
+    const address = server.address();
+    console.log('Server is listening on:', address);
+  });
+}).catch(err => {
+  console.error("ERROR: Failed to connect to PostgreSQL:", err);
+  process.exit(1);
+});

@@ -9,6 +9,7 @@ router.get('/sales', isAdmin, analyticsController.getSalesData);
 router.get('/orders', isAdmin, analyticsController.getOrderStats);
 router.get('/customers', isAdmin, analyticsController.getCustomerAnalytics);
 router.get('/products', isAdmin, analyticsController.getProductPerformance);
+router.post('/search', isAdmin, analyticsController.searchAnalytics);
 router.post('/update', isAdmin, analyticsController.updateAnalytics);
 
 module.exports = router;

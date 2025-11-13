@@ -1,6 +1,7 @@
 {
   "projects": {
-    "staging": "saajjewels-31d29"
+    "staging": "saajjewels-31d29",
+    "default": "saajjewels"
   },
   "targets": {},
   "etags": {}

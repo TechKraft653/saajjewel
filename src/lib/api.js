@@ -1,33 +1,28 @@
-// When using Vite's proxy in development, we don't need the full URL
-// In production, we use the Render backend URLs
-const API_URL = import.meta.env.DEV ? "" : "https://saajjewels-backend.onrender.com";
-const RAZORPAY_URL = import.meta.env.DEV ? "" : "https://saajjewels-razorpay.onrender.com";
+// When using Vite's proxy, we don't need the full URL
+const API_URL = "";
 
 export async function fetchApi(endpoint, options = {}) {
-  // Determine which URL to use based on the endpoint
-  let baseURL = API_URL;
-  if (endpoint.startsWith("/api/razorpay")) {
-    baseURL = RAZORPAY_URL;
-  }
-
-  // Get admin token from localStorage for admin endpoints
-  const isAdminEndpoint = endpoint.startsWith("/api/admin") || 
-                         endpoint.startsWith("/api/orders") || 
-                         endpoint.startsWith("/api/admin/customers");
-  const adminToken = isAdminEndpoint ? localStorage.getItem("adminToken") : null;
-  
   const defaultOptions = {
     headers: {
       "Content-Type": "application/json",
-      // Include admin token for admin endpoints if available
-      ...(isAdminEndpoint && adminToken ? { "x-admin-token": adminToken } : {})
     },
   };
 
+  // Get admin token from localStorage if available
+  const adminToken = localStorage.getItem("adminToken");
+  
+  // Add admin token to headers if it exists
+  if (adminToken) {
+    defaultOptions.headers["x-admin-token"] = adminToken;
+  }
+
   try {
-    console.log(`Making request to: ${baseURL}${endpoint}`);
-    
-    const res = await fetch(`${baseURL}${endpoint}`, {
+    // If body is FormData, don't set Content-Type header (browser will set it with boundary)
+    if (options.body instanceof FormData) {
+      delete defaultOptions.headers["Content-Type"];
+    }
+
+    const res = await fetch(`${API_URL}${endpoint}`, {
       ...defaultOptions,
       ...options,
       headers: {
@@ -46,52 +41,25 @@ export async function fetchApi(endpoint, options = {}) {
     }
 
     if (!res.ok) {
-      // Better error handling to avoid [object Object] errors
-      let message = `HTTP error ${res.status}`;
-      
-      if (data) {
-        if (typeof data === 'string') {
-          message = data;
-        } else if (data.detail) {
-          message = data.detail;
-        } else if (data.message) {
-          message = data.message;
-        } else if (typeof data === 'object') {
-          // Check if it's a MongoDB validation error
-          if (data.errors) {
-            const errorMessages = Object.values(data.errors).map(err => err.message);
-            message = errorMessages.join(', ');
-          } else {
-            // Convert object to string representation
-            message = JSON.stringify(data);
-          }
-        }
-      }
-      
-      throw new Error(message);
+      const message =
+        (data && (data.detail || data.message || data)) ||
+        `HTTP error ${res.status}`;
+      const error = new Error(message);
+      error.status = res.status;
+      throw error;
     }
 
     return data;
   } catch (err) {
     console.error("API Error:", err);
-    
-    // Better error handling for network issues
+    // Enhance error information
     if (err instanceof TypeError && err.message === 'Failed to fetch') {
-      throw new Error("Network error - please check your connection and ensure the backend server is running on port 8000");
-    } else if (err instanceof Error) {
-      throw new Error(err.message || "Network error - please check your connection");
-    } else if (typeof err === 'string') {
-      throw new Error(err);
-    } else if (typeof err === 'object') {
-      // Check if it's a MongoDB validation error
-      if (err && err.errors) {
-        const errorMessages = Object.values(err.errors).map(e => e.message);
-        throw new Error(errorMessages.join(', '));
-      }
-      throw new Error(JSON.stringify(err));
-    } else {
-      throw new Error("Network error - please check your connection");
+      const networkError = new Error('Network error - please check if the backend server is running');
+      networkError.type = 'NETWORK_ERROR';
+      throw networkError;
     }
+    if (err instanceof Error) throw err;
+    throw new Error("Network error - please check your connection");
   }
 }
 
